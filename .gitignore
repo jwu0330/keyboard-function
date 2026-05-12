@@ -13,3 +13,4 @@ _setup/
 _fix-dll.ps1
 _migrate-to-userMode.ps1
 _elevated-install.ps1
+_rename-cn.ps1
