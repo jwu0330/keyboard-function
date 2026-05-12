@@ -98,12 +98,19 @@ if ($desktop -and (Test-Path $desktop)) {
 
     # Repo keeps English filenames as the canonical name; on Desktop we
     # deploy with Chinese names so they are immediately readable to the
-    # primary user. Rename in place if older English-named copies are
-    # already there from a previous bootstrap.
+    # primary user. Build the Chinese names from Unicode code points so
+    # this script survives being read by PowerShell 5.1 on a non-UTF-8
+    # system codepage (PS 5.1 without a BOM falls back to ANSI / cp950
+    # in CJK locales, which would corrupt literal Chinese in the source).
+    # 開啟快捷鍵 = U+958B U+555F U+5FEB U+6377 U+9375
+    # 關閉快捷鍵 = U+95DC U+9589 U+5FEB U+6377 U+9375
+    $startCnName = (-join @([char]0x958B, [char]0x555F, [char]0x5FEB, [char]0x6377, [char]0x9375)) + '.vbs'
+    $stopCnName  = (-join @([char]0x95DC, [char]0x9589, [char]0x5FEB, [char]0x6377, [char]0x9375)) + '.vbs'
+
     Remove-Item (Join-Path $desktop 'Start-Kanata.vbs') -EA SilentlyContinue
     Remove-Item (Join-Path $desktop 'Stop-Kanata.vbs')  -EA SilentlyContinue
-    Copy-Item -Path (Join-Path $here 'Start-Kanata.vbs') -Destination (Join-Path $desktop '開啟快捷鍵.vbs') -Force
-    Copy-Item -Path (Join-Path $here 'Stop-Kanata.vbs')  -Destination (Join-Path $desktop '關閉快捷鍵.vbs') -Force
+    Copy-Item -Path (Join-Path $here 'Start-Kanata.vbs') -Destination (Join-Path $desktop $startCnName) -Force
+    Copy-Item -Path (Join-Path $here 'Stop-Kanata.vbs')  -Destination (Join-Path $desktop $stopCnName)  -Force
     Write-Host "      OK -> $desktop" -ForegroundColor Green
 } else {
     Write-Host "      Desktop path not resolved; .vbs files left in $here only." -ForegroundColor Yellow
