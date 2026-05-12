@@ -78,10 +78,16 @@ $action = New-ScheduledTaskAction `
     -Execute $KanataExe `
     -Argument "--cfg `"$ConfigFile`""
 
-$trigger = New-ScheduledTaskTrigger -AtLogOn -User "$env:USERDOMAIN\$env:USERNAME"
+# Resolve the current user via WindowsIdentity. On workgroup machines
+# $env:USERDOMAIN can be "WORKGROUP", which is not a valid security
+# authority and breaks Register-ScheduledTask. .Name returns the proper
+# COMPUTERNAME\user or DOMAIN\user form.
+$currentUser = ([Security.Principal.WindowsIdentity]::GetCurrent()).Name
+
+$trigger = New-ScheduledTaskTrigger -AtLogOn -User $currentUser
 
 $principal = New-ScheduledTaskPrincipal `
-    -UserId "$env:USERDOMAIN\$env:USERNAME" `
+    -UserId $currentUser `
     -LogonType Interactive `
     -RunLevel Highest
 
