@@ -96,8 +96,14 @@ if ($desktop -and (Test-Path $desktop)) {
     Remove-Item (Join-Path $desktop 'Emergency-Stop-Kanata.bat') -EA SilentlyContinue
     Remove-Item (Join-Path $desktop 'Restart-Kanata.bat')        -EA SilentlyContinue
 
-    Copy-Item -Path (Join-Path $here 'Start-Kanata.vbs') -Destination (Join-Path $desktop 'Start-Kanata.vbs') -Force
-    Copy-Item -Path (Join-Path $here 'Stop-Kanata.vbs')  -Destination (Join-Path $desktop 'Stop-Kanata.vbs')  -Force
+    # Repo keeps English filenames as the canonical name; on Desktop we
+    # deploy with Chinese names so they are immediately readable to the
+    # primary user. Rename in place if older English-named copies are
+    # already there from a previous bootstrap.
+    Remove-Item (Join-Path $desktop 'Start-Kanata.vbs') -EA SilentlyContinue
+    Remove-Item (Join-Path $desktop 'Stop-Kanata.vbs')  -EA SilentlyContinue
+    Copy-Item -Path (Join-Path $here 'Start-Kanata.vbs') -Destination (Join-Path $desktop '開啟快捷鍵.vbs') -Force
+    Copy-Item -Path (Join-Path $here 'Stop-Kanata.vbs')  -Destination (Join-Path $desktop '關閉快捷鍵.vbs') -Force
     Write-Host "      OK -> $desktop" -ForegroundColor Green
 } else {
     Write-Host "      Desktop path not resolved; .vbs files left in $here only." -ForegroundColor Yellow
