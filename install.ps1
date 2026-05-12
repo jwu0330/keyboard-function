@@ -20,7 +20,11 @@
 param(
     [string]$KanataExe  = (Join-Path $PSScriptRoot 'kanata_wintercept.exe'),
     [string]$ConfigFile = (Join-Path $PSScriptRoot 'kanata.kbd'),
-    [string]$TaskName   = 'KanataKeyboardRemap'
+    [string]$TaskName   = 'KanataKeyboardRemap',
+    # Skip the kanata --check step. Useful when Interception driver is installed
+    # but not yet loaded (i.e. you have not rebooted since installing it), since
+    # --check tries to open the driver and would fail before reboot.
+    [switch]$SkipConfigCheck
 )
 
 $ErrorActionPreference = 'Stop'
@@ -45,13 +49,18 @@ if (-not (Test-Path $ConfigFile)) {
     exit 1
 }
 
-Write-Host "[1/4] Validating kanata config..." -ForegroundColor Cyan
-& $KanataExe --cfg $ConfigFile --check
-if ($LASTEXITCODE -ne 0) {
-    Write-Host "Config validation failed. Fix kanata.kbd and re-run." -ForegroundColor Red
-    exit 1
+if ($SkipConfigCheck) {
+    Write-Host "[1/4] Skipping kanata --check (SkipConfigCheck set)." -ForegroundColor Yellow
+} else {
+    Write-Host "[1/4] Validating kanata config..." -ForegroundColor Cyan
+    & $KanataExe --cfg $ConfigFile --check
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "Config validation failed. Fix kanata.kbd and re-run." -ForegroundColor Red
+        Write-Host "(If the driver is installed but not yet loaded, re-run with -SkipConfigCheck.)" -ForegroundColor Yellow
+        exit 1
+    }
+    Write-Host "      OK." -ForegroundColor Green
 }
-Write-Host "      OK." -ForegroundColor Green
 
 Write-Host "[2/4] Removing previous task (if any)..." -ForegroundColor Cyan
 $existing = Get-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue
