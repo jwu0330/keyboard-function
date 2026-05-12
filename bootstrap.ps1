@@ -86,11 +86,27 @@ Copy-Item -Path $dllSrc.FullName -Destination (Join-Path $here 'kanata_passthru_
 Write-Host "      OK." -ForegroundColor Green
 
 # ---------------------------------------------------------------------------
-Write-Host "[2/3] Validating config + registering scheduled task..." -ForegroundColor Cyan
+# Place the mouse-clickable recovery scripts on the user's Desktop. Done
+# BEFORE the install step so that even if scheduled-task registration fails,
+# the user already has an escape hatch on their Desktop.
+Write-Host "[2/4] Placing recovery scripts on Desktop..." -ForegroundColor Cyan
+$desktop = [Environment]::GetFolderPath('Desktop')
+if ($desktop -and (Test-Path $desktop)) {
+    Copy-Item -Path (Join-Path $here 'Emergency-Stop.bat')  -Destination (Join-Path $desktop 'Emergency-Stop-Kanata.bat') -Force
+    Copy-Item -Path (Join-Path $here 'Restart-Kanata.bat')   -Destination (Join-Path $desktop 'Restart-Kanata.bat')        -Force
+    Write-Host "      OK -> $desktop" -ForegroundColor Green
+} else {
+    Write-Host "      Desktop path not resolved; recovery scripts left in $here only." -ForegroundColor Yellow
+}
+
+# ---------------------------------------------------------------------------
+Write-Host "[3/4] Validating config + registering scheduled task..." -ForegroundColor Cyan
 & (Join-Path $here 'install.ps1')
 Write-Host "      OK." -ForegroundColor Green
 
 # ---------------------------------------------------------------------------
 Write-Host ""
-Write-Host "[3/3] Done — no reboot needed." -ForegroundColor Green
-Write-Host "      Test: hold Space + tap W / A / S / D in a text field."
+Write-Host "[4/4] Done — no reboot needed." -ForegroundColor Green
+Write-Host "      Test: hold Space + tap W / A / S / D, or Alt + CapsLock."
+Write-Host "      Panic button (if something goes wrong):"
+Write-Host "          double-click 'Emergency-Stop-Kanata.bat' on your Desktop."
