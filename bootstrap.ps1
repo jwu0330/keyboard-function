@@ -86,8 +86,8 @@ Copy-Item -Path $dllSrc.FullName -Destination (Join-Path $here 'kanata_passthru_
 Write-Host "      OK." -ForegroundColor Green
 
 # ---------------------------------------------------------------------------
-Write-Host "[2/3] Registering scheduled task..." -ForegroundColor Cyan
-& (Join-Path $here 'install.ps1') -SkipConfigCheck
+Write-Host "[2/3] Validating config + registering scheduled task..." -ForegroundColor Cyan
+& (Join-Path $here 'install.ps1')
 Write-Host "      OK." -ForegroundColor Green
 
 # ---------------------------------------------------------------------------
