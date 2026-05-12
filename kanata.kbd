@@ -1,0 +1,43 @@
+;; ============================================================================
+;; Space + WASD -> Arrow keys
+;; ----------------------------------------------------------------------------
+;; Tap Space alone          = Space (normal)
+;; Hold Space + W           = Up
+;; Hold Space + A           = Left
+;; Hold Space + S           = Down
+;; Hold Space + D           = Right
+;; ============================================================================
+
+(defcfg
+  process-unmapped-keys yes
+  danger-enable-cmd no
+)
+
+(defvar
+  ;; Tap/Hold threshold (milliseconds).
+  ;;   Lower  (150)  -> arrows feel snappier, but fast typing may misfire.
+  ;;   Higher (250+) -> safer for typing, slight wait before arrows engage.
+  ;; Start at 200, adjust by feel. If you type "I am" / "we saw" and get
+  ;; stray arrow keys, raise this number.
+  tap-ms  200
+  hold-ms 200
+)
+
+(defsrc
+  spc  w  a  s  d
+)
+
+(defalias
+  ;; tap-hold-release: the "hold" action engages only when another key is
+  ;; released while space is still held, OR space is held past the timeout.
+  ;; This is the safest variant for keeping normal typing intact.
+  spcnav (tap-hold-release $tap-ms $hold-ms spc (layer-while-held nav))
+)
+
+(deflayer base
+  @spcnav  w  a  s  d
+)
+
+(deflayer nav
+  _   up  left  down  right
+)

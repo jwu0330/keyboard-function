@@ -1,0 +1,6 @@
+# kanata binaries (downloaded separately from GitHub releases)
+kanata.exe
+kanata_wintercept.exe
+
+# logs
+*.log
