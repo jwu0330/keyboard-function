@@ -1,43 +1,58 @@
 ;; ============================================================================
-;; Space + WASD -> Arrow keys
+;; Keyboard remaps (winIOv2 / user-mode)
 ;; ----------------------------------------------------------------------------
-;; Tap Space alone          = Space (normal)
-;; Hold Space + W           = Up
-;; Hold Space + A           = Left
-;; Hold Space + S           = Down
-;; Hold Space + D           = Right
+;; Tap Space alone              = Space (normal)
+;; Hold Space + W/A/S/D         = Up / Left / Down / Right
+;; Alt + CapsLock               = Enter
+;;   - Plain CapsLock (no Alt)  = still toggles Caps Lock (unchanged)
+;;   - Plain Alt   (no CapsLock)= still Alt (Alt+Tab, Alt+F4, ... unchanged)
 ;; ============================================================================
 
 (defcfg
   process-unmapped-keys yes
   danger-enable-cmd no
+  ;; Required when defchordsv2 coexists with tap-hold (we have both):
+  ;; lets the chord detector and tap-hold timer run concurrently instead
+  ;; of one blocking the other.
+  concurrent-tap-hold yes
 )
 
 (defvar
-  ;; Tap/Hold threshold (milliseconds).
+  ;; Tap/Hold threshold for the Space-as-nav-layer logic (milliseconds).
   ;;   Lower  (150)  -> arrows feel snappier, but fast typing may misfire.
   ;;   Higher (250+) -> safer for typing, slight wait before arrows engage.
-  ;; Start at 200, adjust by feel. If you type "I am" / "we saw" and get
-  ;; stray arrow keys, raise this number.
   tap-ms  200
   hold-ms 200
+
+  ;; Chord window for Alt + CapsLock. Both keys must be pressed within this
+  ;; window for the chord to fire. 200ms is comfortable for a deliberate
+  ;; combo and tight enough that you can't trigger it by accident from
+  ;; ordinary Alt-based shortcuts.
+  chord-ms 200
 )
 
 (defsrc
-  spc  w  a  s  d
+  spc  w  a  s  d  caps  lalt  ralt
 )
 
 (defalias
-  ;; tap-hold-release: the "hold" action engages only when another key is
-  ;; released while space is still held, OR space is held past the timeout.
-  ;; This is the safest variant for keeping normal typing intact.
   spcnav (tap-hold-release $tap-ms $hold-ms spc (layer-while-held nav))
 )
 
 (deflayer base
-  @spcnav  w  a  s  d
+  @spcnav  w  a  s  d  caps  lalt  ralt
 )
 
 (deflayer nav
-  _   up  left  down  right
+  _   up  left  down  right  caps  lalt  ralt
+)
+
+(defchordsv2
+  ;; Alt + CapsLock -> Enter
+  ;; `first-release` mode: chord fires as soon as one of the keys is
+  ;; released within the timeout (snappy feel). Both left- and right-Alt
+  ;; are supported. Disabled in the `nav` layer so a stray Alt while
+  ;; holding Space cannot accidentally fire it.
+  (lalt caps) ret $chord-ms first-release (nav)
+  (ralt caps) ret $chord-ms first-release (nav)
 )
