@@ -1,46 +1,36 @@
 #Requires -RunAsAdministrator
 <#
-    install.ps1 — register kanata as a Windows scheduled task.
+    install.ps1 — register kanata (user-mode / winIOv2) as a scheduled task
+    that runs at every logon.
 
-    Prerequisites (one-time, manual):
-      1. Install the Interception driver:
-         https://github.com/oblitum/Interception/releases
-         Extract, open an admin cmd in the extracted folder, run:
-             install-interception.exe /install
-         Reboot.
+    Why user-mode (RunLevel Limited)?
+    - No kernel driver = no BSOD risk, no persistent kernel attack surface.
+    - kanata stops cleanly when the process exits — nothing left behind.
+    - Same coverage for normal apps (editors, browsers, terminals); only
+      elevated apps (Task Manager, UAC dialogs) and a few anti-cheat games
+      are out of scope — and those are scenarios where you typically do
+      not want a Space+WASD remap active anyway.
 
-      2. Download kanata_wintercept.exe:
-         https://github.com/jtroo/kanata/releases (latest)
-         Place it next to this script.
+    Run this AFTER bootstrap.ps1 has staged kanata_winIOv2.exe and the
+    passthru dll next to this script.
 
-    Then run this script from an elevated PowerShell:
-        powershell -ExecutionPolicy Bypass -File .\install.ps1
+    Use -SkipConfigCheck to bypass the `kanata --check` validation pass
+    (rarely needed for the user-mode binary).
 #>
 
 param(
-    [string]$KanataExe  = (Join-Path $PSScriptRoot 'kanata_wintercept.exe'),
+    [string]$KanataExe  = (Join-Path $PSScriptRoot 'kanata_winIOv2.exe'),
     [string]$ConfigFile = (Join-Path $PSScriptRoot 'kanata.kbd'),
     [string]$TaskName   = 'KanataKeyboardRemap',
-    # Skip the kanata --check step. Useful when Interception driver is installed
-    # but not yet loaded (i.e. you have not rebooted since installing it), since
-    # --check tries to open the driver and would fail before reboot.
     [switch]$SkipConfigCheck
 )
 
 $ErrorActionPreference = 'Stop'
 
 if (-not (Test-Path $KanataExe)) {
-    Write-Host "kanata_wintercept.exe not found at:" -ForegroundColor Red
+    Write-Host "kanata binary not found at:" -ForegroundColor Red
     Write-Host "    $KanataExe"
-    Write-Host ""
-    Write-Host "Step 1 - Install Interception driver (one-time, requires reboot):" -ForegroundColor Yellow
-    Write-Host "    https://github.com/oblitum/Interception/releases"
-    Write-Host ""
-    Write-Host "Step 2 - Download kanata_wintercept.exe and place it next to this script:" -ForegroundColor Yellow
-    Write-Host "    https://github.com/jtroo/kanata/releases"
-    Write-Host "    Save to: $PSScriptRoot"
-    Write-Host ""
-    Write-Host "Step 3 - Re-run this script as Administrator."
+    Write-Host "Run bootstrap.ps1 first to download it."
     exit 1
 }
 
@@ -56,40 +46,46 @@ if ($SkipConfigCheck) {
     & $KanataExe --cfg $ConfigFile --check
     if ($LASTEXITCODE -ne 0) {
         Write-Host "Config validation failed. Fix kanata.kbd and re-run." -ForegroundColor Red
-        Write-Host "(If the driver is installed but not yet loaded, re-run with -SkipConfigCheck.)" -ForegroundColor Yellow
         exit 1
     }
     Write-Host "      OK." -ForegroundColor Green
 }
 
-Write-Host "[2/4] Removing previous task (if any)..." -ForegroundColor Cyan
+Write-Host "[2/4] Stopping any running kanata + removing previous task..." -ForegroundColor Cyan
+Get-Process kanata* -ErrorAction SilentlyContinue | ForEach-Object {
+    Write-Host "      Killing $($_.Name) (PID $($_.Id))"
+    Stop-Process -Id $_.Id -Force
+}
+Start-Sleep -Milliseconds 500
 $existing = Get-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue
 if ($existing) {
     Stop-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue
     Unregister-ScheduledTask -TaskName $TaskName -Confirm:$false
-    Write-Host "      Removed: $TaskName" -ForegroundColor Green
+    Write-Host "      Removed previous task." -ForegroundColor Green
 } else {
     Write-Host "      No previous task." -ForegroundColor Green
 }
 
-Write-Host "[3/4] Registering scheduled task..." -ForegroundColor Cyan
+Write-Host "[3/4] Registering scheduled task (user-mode / Limited)..." -ForegroundColor Cyan
+
+# Resolve user via WindowsIdentity. On workgroup PCs $env:USERDOMAIN may be
+# "WORKGROUP", which is not a valid security authority; .Name returns the
+# correct COMPUTERNAME\user form.
+$currentUser = ([Security.Principal.WindowsIdentity]::GetCurrent()).Name
 
 $action = New-ScheduledTaskAction `
     -Execute $KanataExe `
     -Argument "--cfg `"$ConfigFile`""
 
-# Resolve the current user via WindowsIdentity. On workgroup machines
-# $env:USERDOMAIN can be "WORKGROUP", which is not a valid security
-# authority and breaks Register-ScheduledTask. .Name returns the proper
-# COMPUTERNAME\user or DOMAIN\user form.
-$currentUser = ([Security.Principal.WindowsIdentity]::GetCurrent()).Name
-
 $trigger = New-ScheduledTaskTrigger -AtLogOn -User $currentUser
 
+# RunLevel Limited intentionally: we WANT kanata to run unelevated so it
+# cannot intercept input destined for elevated processes (Task Manager etc.).
+# That's the security guarantee that justifies the user-mode choice.
 $principal = New-ScheduledTaskPrincipal `
     -UserId $currentUser `
     -LogonType Interactive `
-    -RunLevel Highest
+    -RunLevel Limited
 
 $settings = New-ScheduledTaskSettingsSet `
     -AllowStartIfOnBatteries `
@@ -99,30 +95,34 @@ $settings = New-ScheduledTaskSettingsSet `
     -RestartInterval (New-TimeSpan -Minutes 1) `
     -MultipleInstances IgnoreNew
 
-# Remove the default 72h execution time limit so kanata can run indefinitely.
-$settings.ExecutionTimeLimit = 'PT0S'
+$settings.ExecutionTimeLimit = 'PT0S'   # no time limit
 
 Register-ScheduledTask `
-    -TaskName $TaskName `
-    -Action $action `
-    -Trigger $trigger `
+    -TaskName  $TaskName `
+    -Action    $action `
+    -Trigger   $trigger `
     -Principal $principal `
-    -Settings $settings `
-    -Description 'Kanata keyboard remap: Space + WASD -> arrow keys' | Out-Null
+    -Settings  $settings `
+    -Description 'Kanata user-mode keyboard remap (Space + WASD -> arrows, winIOv2)' | Out-Null
 
 Write-Host "      Registered: $TaskName" -ForegroundColor Green
 
 Write-Host "[4/4] Starting task..." -ForegroundColor Cyan
 Start-ScheduledTask -TaskName $TaskName
-Start-Sleep -Seconds 2
-$state = (Get-ScheduledTask -TaskName $TaskName).State
-Write-Host "      State: $state" -ForegroundColor Green
+Start-Sleep -Seconds 3
+$proc = Get-Process kanata_winIOv2 -ErrorAction SilentlyContinue
+if ($proc) {
+    Write-Host "      kanata_winIOv2 running: PID $($proc.Id)" -ForegroundColor Green
+} else {
+    $info = Get-ScheduledTaskInfo -TaskName $TaskName
+    Write-Host ("      Task started but no kanata process. LastResult: 0x{0:X}" -f $info.LastTaskResult) -ForegroundColor Red
+}
 
 Write-Host ""
-Write-Host "Done. Test it: hold Space + tap W / A / S / D." -ForegroundColor Green
+Write-Host "Done. Hold Space + tap W / A / S / D." -ForegroundColor Green
 Write-Host ""
-Write-Host "Management commands:" -ForegroundColor Cyan
-Write-Host "    Start  :  Start-ScheduledTask  -TaskName $TaskName"
-Write-Host "    Stop   :  Stop-ScheduledTask   -TaskName $TaskName"
-Write-Host "    Status :  Get-ScheduledTask    -TaskName $TaskName"
+Write-Host "Management:" -ForegroundColor Cyan
+Write-Host "    Status :  Get-ScheduledTask  -TaskName $TaskName"
+Write-Host "    Stop   :  Stop-ScheduledTask -TaskName $TaskName  (admin)"
+Write-Host "    Start  :  Start-ScheduledTask -TaskName $TaskName"
 Write-Host "    Remove :  .\uninstall.ps1"

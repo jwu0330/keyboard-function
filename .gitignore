@@ -1,7 +1,15 @@
-# kanata binaries (downloaded separately from GitHub releases)
+# kanata binaries / native DLLs (downloaded separately from GitHub releases)
 kanata.exe
 kanata_wintercept.exe
+kanata_winIOv2.exe
+kanata_passthru_x64.dll
+interception.dll
 
-# logs
+# extracted downloads
+_setup/
+
+# logs and one-off patch scripts
 *.log
 _fix-dll.ps1
+_migrate-to-userMode.ps1
+_elevated-install.ps1
