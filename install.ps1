@@ -73,9 +73,19 @@ Write-Host "[3/4] Registering scheduled task (user-mode / Limited)..." -Foregrou
 # correct COMPUTERNAME\user form.
 $currentUser = ([Security.Principal.WindowsIdentity]::GetCurrent()).Name
 
+# Launch kanata via a hidden wscript wrapper rather than directly. kanata's
+# console-subsystem binary would otherwise pop up a terminal window when
+# the scheduled task spawns it; the .vbs uses WshShell.Run with windowStyle=0
+# so no window ever shows.
+$launchVbs = Join-Path $PSScriptRoot 'launch-kanata.vbs'
+if (-not (Test-Path $launchVbs)) {
+    Write-Host "launch-kanata.vbs not found at $launchVbs" -ForegroundColor Red
+    exit 1
+}
+
 $action = New-ScheduledTaskAction `
-    -Execute $KanataExe `
-    -Argument "--cfg `"$ConfigFile`""
+    -Execute "$env:WINDIR\System32\wscript.exe" `
+    -Argument "`"$launchVbs`""
 
 $trigger = New-ScheduledTaskTrigger -AtLogOn -User $currentUser
 
