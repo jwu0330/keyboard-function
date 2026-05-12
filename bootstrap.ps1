@@ -89,14 +89,18 @@ Write-Host "      OK." -ForegroundColor Green
 # Place the mouse-clickable recovery scripts on the user's Desktop. Done
 # BEFORE the install step so that even if scheduled-task registration fails,
 # the user already has an escape hatch on their Desktop.
-Write-Host "[2/4] Placing recovery scripts on Desktop..." -ForegroundColor Cyan
+Write-Host "[2/4] Placing Start/Stop shortcuts on Desktop..." -ForegroundColor Cyan
 $desktop = [Environment]::GetFolderPath('Desktop')
 if ($desktop -and (Test-Path $desktop)) {
-    Copy-Item -Path (Join-Path $here 'Emergency-Stop.bat')  -Destination (Join-Path $desktop 'Emergency-Stop-Kanata.bat') -Force
-    Copy-Item -Path (Join-Path $here 'Restart-Kanata.bat')   -Destination (Join-Path $desktop 'Restart-Kanata.bat')        -Force
+    # Clean up any legacy .bat files from earlier versions.
+    Remove-Item (Join-Path $desktop 'Emergency-Stop-Kanata.bat') -EA SilentlyContinue
+    Remove-Item (Join-Path $desktop 'Restart-Kanata.bat')        -EA SilentlyContinue
+
+    Copy-Item -Path (Join-Path $here 'Start-Kanata.vbs') -Destination (Join-Path $desktop 'Start-Kanata.vbs') -Force
+    Copy-Item -Path (Join-Path $here 'Stop-Kanata.vbs')  -Destination (Join-Path $desktop 'Stop-Kanata.vbs')  -Force
     Write-Host "      OK -> $desktop" -ForegroundColor Green
 } else {
-    Write-Host "      Desktop path not resolved; recovery scripts left in $here only." -ForegroundColor Yellow
+    Write-Host "      Desktop path not resolved; .vbs files left in $here only." -ForegroundColor Yellow
 }
 
 # ---------------------------------------------------------------------------
