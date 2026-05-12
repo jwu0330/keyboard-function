@@ -81,6 +81,18 @@ if (-not $icpInst) {
 }
 Write-Host "      OK -> $($icpInst.FullName)" -ForegroundColor Green
 
+# kanata_wintercept.exe loads interception.dll at runtime via standard DLL search,
+# so the dll MUST sit next to the exe (or be on PATH). Without this, kanata crashes
+# immediately with 0xC0000135 (STATUS_DLL_NOT_FOUND).
+$icpDll = Get-ChildItem -Path $icpExtract -Recurse -Filter 'interception.dll' |
+    Where-Object { $_.FullName -match '\\x64\\' } |
+    Select-Object -First 1
+if (-not $icpDll) {
+    throw "interception.dll (x64) not found inside Interception.zip"
+}
+Copy-Item -Path $icpDll.FullName -Destination (Join-Path $here 'interception.dll') -Force
+Write-Host "      OK -> $(Join-Path $here 'interception.dll')" -ForegroundColor Green
+
 # ---------------------------------------------------------------------------
 Write-Host "[3/5] Installing Interception driver (active after reboot)..." -ForegroundColor Cyan
 Push-Location (Split-Path $icpInst.FullName -Parent)
