@@ -16,7 +16,14 @@
         gh repo clone jwu0330/keyboard-function $env:USERPROFILE\keyboard-function;
         Set-Location $env:USERPROFILE\keyboard-function;
         powershell -ExecutionPolicy Bypass -File .\bootstrap.ps1
+
+    Use -NoReboot to skip the interactive reboot prompt (e.g. when invoked
+    over SSH where no TTY is attached). You will need to reboot manually.
 #>
+
+param(
+    [switch]$NoReboot
+)
 
 $ErrorActionPreference = 'Stop'
 $here    = $PSScriptRoot
@@ -78,9 +85,13 @@ Write-Host "      The Interception driver only loads at boot. After you reboot"
 Write-Host "      and log in, kanata starts automatically and"
 Write-Host "      hold Space + W/A/S/D becomes Up/Left/Down/Right."
 Write-Host ""
-$ans = Read-Host "Reboot now? (y/N)"
-if ($ans -eq 'y' -or $ans -eq 'Y') {
-    Restart-Computer -Force
+if ($NoReboot) {
+    Write-Host "Reboot manually when ready. After reboot, no further action is needed." -ForegroundColor Cyan
 } else {
-    Write-Host "Reboot later. After reboot, no further action is needed." -ForegroundColor Cyan
+    $ans = Read-Host "Reboot now? (y/N)"
+    if ($ans -eq 'y' -or $ans -eq 'Y') {
+        Restart-Computer -Force
+    } else {
+        Write-Host "Reboot later. After reboot, no further action is needed." -ForegroundColor Cyan
+    }
 }
