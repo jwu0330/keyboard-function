@@ -40,9 +40,27 @@ $kanataExtract = Join-Path $setup 'kanata'
 if (Test-Path $kanataExtract) { Remove-Item $kanataExtract -Recurse -Force }
 Expand-Archive -Path $kanataZip -DestinationPath $kanataExtract -Force
 
-$kanataExe = Get-ChildItem -Path $kanataExtract -Recurse -Filter 'kanata_wintercept.exe' | Select-Object -First 1
+# kanata renamed Windows binaries: now there are gui/tty x winIOv2/wintercept x cmd_allowed variants.
+# Pick: TTY (no GUI, runs headless as a service), WINTERCEPT (kernel driver), NOT cmd_allowed (safer;
+# our config sets danger-enable-cmd no anyway).
+$kanataExe = Get-ChildItem -Path $kanataExtract -Recurse -File |
+    Where-Object {
+        $_.Name -like 'kanata_windows_tty_wintercept_*x64*.exe' -and
+        $_.Name -notlike '*cmd_allowed*'
+    } |
+    Select-Object -First 1
+
 if (-not $kanataExe) {
-    throw "kanata_wintercept.exe not found inside $kanataZip"
+    # Fallback: any wintercept tty exe
+    $kanataExe = Get-ChildItem -Path $kanataExtract -Recurse -File -Filter '*wintercept*.exe' |
+        Where-Object { $_.Name -notlike '*cmd_allowed*' -and $_.Name -notlike '*gui*' } |
+        Select-Object -First 1
+}
+
+if (-not $kanataExe) {
+    Write-Host "Available binaries in the zip:" -ForegroundColor Yellow
+    Get-ChildItem -Path $kanataExtract -Recurse -File | Select-Object Name | Format-Table -AutoSize
+    throw "No suitable kanata wintercept TTY binary found inside $kanataZip"
 }
 Copy-Item -Path $kanataExe.FullName -Destination (Join-Path $here 'kanata_wintercept.exe') -Force
 Write-Host "      OK -> $(Join-Path $here 'kanata_wintercept.exe')" -ForegroundColor Green
